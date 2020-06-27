@@ -1,0 +1,164 @@
+diff --git a/src/Makefile b/src/Makefile
+index af7d209..ba72502 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -44,14 +44,6 @@ X_CFLAGS              ?=
+ 
+ PKG_CONFIG            ?= pkg-config
+ 
+-ifndef GTK2_CFLAGS
+-  GTK2_CFLAGS          := $(shell $(PKG_CONFIG) --cflags gtk+-2.0)
+-endif
+-
+-ifndef GTK2_LDFLAGS
+-  GTK2_LDFLAGS         := -Wl,--no-as-needed $(shell $(PKG_CONFIG) --libs gtk+-2.0)
+-endif
+-
+ ifndef GTK3_AVAILABLE
+   GTK3_AVAILABLE := $(shell $(PKG_CONFIG) --exists gtk+-3.0 && echo 1)
+ endif
+@@ -113,6 +105,8 @@ endif
+ XNVCTRL_DIR             ?= libXNVCtrl
+ XNVCTRL_MAKEFILE        ?= Makefile
+ XNVCTRL_ARCHIVE         ?= $(XNVCTRL_DIR)/libXNVCtrl.a
++XNVCTRL_SHARED          ?= $(XNVCTRL_DIR)/libXNVCtrl.so.0
++XNVCTRL_LIB             ?= $(XNVCTRL_SHARED)
+ XCONFIG_PARSER_DIR      ?= XF86Config-parser
+ COMMON_UTILS_DIR        ?= common-utils
+ COMMON_UNIX_DIR         ?= common-unix
+@@ -128,11 +122,6 @@ NVIDIA_SETTINGS_PROGRAM_NAME = "nvidia-settings"
+ 
+ NVIDIA_SETTINGS_VERSION := $(NVIDIA_VERSION)
+ 
+-GTK2LIB_NAME = libnvidia-gtk2.so
+-GTK2LIB_DIR  = $(OUTPUTDIR)/gtk2
+-GTK2LIB = $(OUTPUTDIR)/$(GTK2LIB_NAME)
+-GTK2LIB_SONAME = $(GTK2LIB_NAME).$(NVIDIA_SETTINGS_VERSION)
+-
+ ifdef BUILD_GTK3LIB
+   GTK3LIB_NAME = libnvidia-gtk3.so
+   GTK3LIB_DIR  = $(OUTPUTDIR)/gtk3
+@@ -196,7 +185,6 @@ endif
+ # for "--as-needed" linker behavior).
+ LIBS += -lX11 -lXext -lm $(LIBDL_LIBS)
+ 
+-GTK2_LIBS += $(GTK2_LDFLAGS)
+ GTK3_LIBS += $(GTK3_LDFLAGS)
+ 
+ # Include all the source lists; dist-files.mk will define NVIDIA_SETTINGS_SRC
+@@ -217,7 +205,6 @@ SRC        += $(STAMP_C)
+ OBJS        = $(call BUILD_OBJECT_LIST,$(SRC))
+ XCP_OBJS    = $(call BUILD_OBJECT_LIST,$(XCP_SRC))
+ 
+-GTK2_OBJS    = $(call BUILD_OBJECT_LIST_WITH_DIR,$(GTK_SRC),$(GTK2LIB_DIR))
+ GTK3_OBJS    = $(call BUILD_OBJECT_LIST_WITH_DIR,$(GTK_SRC),$(GTK3LIB_DIR))
+ IMAGE_OBJS    = $(addprefix $(OUTPUTDIR)/,$(addsuffix .o,$(notdir $(IMAGE_FILES))))
+ IMAGE_HEADERS = $(addprefix $(OUTPUTDIR)/,$(addsuffix .h,$(notdir $(IMAGE_FILES))))
+@@ -242,9 +229,6 @@ CFLAGS     += -DPROGRAM_NAME=\"nvidia-settings\"
+ 
+ $(call BUILD_OBJECT_LIST,$(XCP_SRC)): CFLAGS += -fPIC
+ 
+-$(call BUILD_OBJECT_LIST_WITH_DIR,$(GTK_SRC),$(GTK2LIB_DIR)): \
+-    CFLAGS += $(GTK2_CFLAGS) -fPIC -I $(XCONFIG_PARSER_DIR)/..
+-
+ ifdef BUILD_GTK3LIB
+   $(call BUILD_OBJECT_LIST_WITH_DIR,$(GTK_SRC),$(GTK3LIB_DIR)): \
+       CFLAGS += $(GTK3_CFLAGS) -fPIC -I $(XCONFIG_PARSER_DIR)/..
+@@ -268,14 +252,12 @@ endef
+ 
+ .PHONY: all install NVIDIA_SETTINGS_install clean clobber build-xnvctrl
+ 
+-all: $(NVIDIA_SETTINGS) $(GTK2LIB) $(GTK3LIB)
++all: $(NVIDIA_SETTINGS) $(GTK3LIB)
+ 
+ install: NVIDIA_SETTINGS_install NVIDIA_GTKLIB_install
+ 
+-NVIDIA_GTKLIB_install: $(GTK2LIB) $(GTK3LIB)
++NVIDIA_GTKLIB_install: $(GTK3LIB)
+ 	$(MKDIR) $(LIBDIR)
+-	$(INSTALL) $(INSTALL_LIB_ARGS) $(GTK2LIB) \
+-	    $(LIBDIR)/$(GTK2LIB_SONAME)
+ ifdef BUILD_GTK3LIB
+ 	$(INSTALL) $(INSTALL_LIB_ARGS) $(GTK3LIB) \
+ 	    $(LIBDIR)/$(GTK3LIB_SONAME)
+@@ -285,24 +267,19 @@ NVIDIA_SETTINGS_install: $(NVIDIA_SETTINGS)
+ 	$(MKDIR) $(BINDIR)
+ 	$(INSTALL) $(INSTALL_BIN_ARGS) $< $(BINDIR)/$(notdir $<)
+ 
++$(XNVCTRL_ARCHIVE) $(XNVCTRL_SHARED):
++	$(MAKE) -C $(XNVCTRL_DIR)
++
+ $(eval $(call DEBUG_INFO_RULES, $(NVIDIA_SETTINGS)))
+-$(NVIDIA_SETTINGS).unstripped: $(OBJS) $(XNVCTRL_ARCHIVE)
++$(NVIDIA_SETTINGS).unstripped: $(OBJS) $(XNVCTRL_LIB)
+ 	$(call quiet_cmd,LINK) $(CFLAGS) $(LDFLAGS) $(BIN_LDFLAGS) \
+-	    -rdynamic -o $@ $(OBJS) $(XNVCTRL_ARCHIVE) $(LIBS)
+-
+-$(eval $(call DEBUG_INFO_RULES, $(GTK2LIB)))
+-$(GTK2LIB).unstripped: $(GTK2_OBJS) $(XCP_OBJS) $(IMAGE_OBJS) $(VERSION_MK)
+-	$(call quiet_cmd,LINK) -shared $(CFLAGS) $(LDFLAGS) $(BIN_LDFLAGS) \
+-	    $(XNVCTRL_ARCHIVE) $(LIBS) $(GTK2_LIBS) \
+-	    -Wl,--unresolved-symbols=ignore-all -o $@ \
+-	    -Wl,-soname -Wl,$(GTK2LIB_SONAME) \
+-	    $(GTK2_OBJS) $(IMAGE_OBJS) $(XCP_OBJS)
++	    -rdynamic -o $@ $(OBJS) $(XNVCTRL_LIB) $(LIBS)
+ 
+ ifdef BUILD_GTK3LIB
+ $(eval $(call DEBUG_INFO_RULES, $(GTK3LIB)))
+ $(GTK3LIB).unstripped: $(GTK3_OBJS) $(XCP_OBJS) $(IMAGE_OBJS) $(VERSION_MK)
+ 	$(call quiet_cmd,LINK) -shared $(CFLAGS) $(LDFLAGS)  $(BIN_LDFLAGS) \
+-	    $(XNVCTRL_ARCHIVE) $(LIBS) $(GTK3_LIBS) \
++	    $(XNVCTRL_LIB) $(LIBS) $(GTK3_LIBS) \
+ 	    -Wl,--unresolved-symbols=ignore-all -o $@ \
+ 	    -Wl,-soname -Wl,$(GTK3LIB_SONAME) \
+ 	    $(GTK3_OBJS) $(XCP_OBJS) $(IMAGE_OBJS)
+@@ -324,13 +301,10 @@ build-xnvctrl:
+ clean clobber:
+ 	rm -rf $(NVIDIA_SETTINGS) *~ $(STAMP_C) \
+ 		$(OUTPUTDIR)/*.o $(OUTPUTDIR)/*.d \
+-		$(GTK2LIB) $(GTK3LIB) $(GTK2LIB_DIR) $(GTK3LIB_DIR) \
++		$(GTK3LIB) $(GTK3LIB_DIR) \
+ 		$(IMAGE_HEADERS)
+ 	@$(MAKE) -C $(XNVCTRL_DIR) -f $(XNVCTRL_MAKEFILE) clean
+ 
+-$(foreach src,$(GTK_SRC), \
+-    $(eval $(call DEFINE_OBJECT_RULE_WITH_DIR,TARGET,$(src),$(GTK2LIB_DIR))))
+-
+ ifdef BUILD_GTK3LIB
+ $(foreach src,$(GTK_SRC), \
+     $(eval $(call DEFINE_OBJECT_RULE_WITH_DIR,TARGET,$(src),$(GTK3LIB_DIR))))
+@@ -343,7 +317,6 @@ $(foreach png,$(IMAGE_FILES), \
+ # Build $(IMAGE_HEADERS)
+ $(foreach png,$(IMAGE_FILES), \
+   $(eval $(call BINARY_DATA_HEADER_RULE,$(png))))
+-$(GTK2_OBJS): $(IMAGE_HEADERS)
+ ifdef BUILD_GTK3LIB
+   $(GTK3_OBJS): $(IMAGE_HEADERS)
+ endif
+diff --git a/src/libXNVCtrl/Makefile b/src/libXNVCtrl/Makefile
+index e4357fd..fd5b63e 100644
+--- a/src/libXNVCtrl/Makefile
++++ b/src/libXNVCtrl/Makefile
+@@ -58,10 +58,17 @@ OBJS = $(call BUILD_OBJECT_LIST,$(SRC))
+ .PHONY: clean
+ 
+ all: $(LIBXNVCTRL)
++all: libXNVCtrl.so
+ 
+ $(LIBXNVCTRL) : $(OBJS)
+ 	$(AR) ru $@ $(OBJS)
+ 
++libXNVCtrl.so: $(OBJS)
++	$(RM) $@ $@.*
++	$(CC) -shared -Wl,-soname=$@.0 -o $@.0.0.0 $(LDFLAGS) $^ -lXext -lX11
++	ln -s $@.0.0.0 $@.0
++	ln -s $@.0 $@
++
+ # define the rule to build each object file
+ $(foreach src,$(SRC),$(eval $(call DEFINE_OBJECT_RULE,TARGET,$(src))))
+ 
+@@ -71,3 +78,4 @@ $(eval $(call DEFINE_STAMP_C_RULE, $(OBJS),$(LIBXNVCTRL_PROGRAM_NAME)))
+ clean:
+ 	rm -rf $(LIBXNVCTRL) *~ $(STAMP_C) \
+ 		$(OUTPUTDIR)/*.o $(OUTPUTDIR)/*.d
++	rm -f libXNVCtrl.so libXNVCtrl.so.*

@@ -3,22 +3,25 @@
 
 pkgbase=nvidia-390xx-settings
 pkgname=('nvidia-390xx-settings' 'libxnvctrl-390xx')
-pkgver=390.132
-pkgrel=2
+pkgver=390.138
+pkgrel=1
 pkgdesc='Tool for configuring the NVIDIA graphics driver, 390xx legacy branch'
 url='https://github.com/NVIDIA/nvidia-settings'
 arch=('x86_64')
 license=('GPL2')
-makedepends=('git' 'inetutils' 'gtk2' 'jansson' 'gtk3' 'libxv' 'libvdpau' 'nvidia-390xx-utils' 'libxext')
+makedepends=('git' 'inetutils' 'jansson' 'gtk3' 'libxv' 'libvdpau' 'nvidia-390xx-utils' 'libxext')
 options=('staticlibs')
 source=(nvidia-settings-${pkgver}.tar.gz::https://github.com/NVIDIA/nvidia-settings/archive/${pkgver}.tar.gz
-        libxnvctrl_so.patch)
-sha512sums=('ad6836c8b002478fe7b76fb7df6b685686e73ba0849533f5d2c6cc0ca489f212556f309bc67870b2844921bfdb2c3c49300f35ee4d32e3d4c7f29c1ac9b0dd9a'
-            'f69f5dc84fe624579a3c9ce877f4ae4e34c2184877576afbea07b8abdd7ff01e470517f2b77cd11a904518cbcb83fb388ca1d08888006f0ef2854723920c9cf8')
+        remove-gtk2-and-libnvctrl.patch
+        a7c1f5fce6303a643fadff7d85d59934bd0cf6b6.patch)
+sha512sums=('c27c8dbb858f06982e251bd3bf49650d05ca8811d61eb342b43bf00bc595b8d789b38b7ebd76b9ab5786ec5bee84b1cb44ee3f3fb24c40dee1b1b9d535993eb6'
+            'cce2dd9ab609ef6fd2bdd54d69954105bdcc74a80b8b604e16872031f15084a6b4b00c0c27fa16f8da301c45571895a2e3eda0fe6e16280df56689e137e2f1df'
+            '41734e7ff791b04f989d951e79c94e6c8c0dd06d65640597ae0b1c66e30d54c0d11fa4b91e40a29605ea4ff84401a5e8ffa6ed3c4b0329eb433be43104b4a070')
 
 prepare() {
   cd nvidia-settings-${pkgver}
-  patch -p1 < "${srcdir}/libxnvctrl_so.patch"
+  patch -p1 -i "${srcdir}/remove-gtk2-and-libnvctrl.patch"
+  patch -p1 -i "${srcdir}/a7c1f5fce6303a643fadff7d85d59934bd0cf6b6.patch"
 }
 
 build() {
@@ -43,7 +46,7 @@ package_nvidia-390xx-settings() {
   install -D -m644 doc/nvidia-settings.png "${pkgdir}/usr/share/pixmaps/nvidia-settings.png"
   sed -e 's:__UTILS_PATH__:/usr/bin:' -e 's:__PIXMAP_PATH__:/usr/share/pixmaps:' -i "${pkgdir}/usr/share/applications/nvidia-settings.desktop"
 
-  rm "$pkgdir/usr/lib/libnvidia-gtk2.so.$pkgver"
+  #rm "$pkgdir/usr/lib/libnvidia-gtk2.so.$pkgver"
 }
 
 package_libxnvctrl-390xx() {
